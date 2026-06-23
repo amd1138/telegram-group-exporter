@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Выгрузка сообщений Telegram</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: #0e1621; color: #e8edf2; margin: 0; padding: 24px;
+    display: flex; justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 560px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #8aa0b3; font-size: 14px; margin-bottom: 20px; }
+  .card {
+    background: #17212b; border: 1px solid #243140; border-radius: 14px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; color: #5eb5f7; }
+  label { display: block; font-size: 13px; color: #b7c6d4; margin: 10px 0 4px; }
+  input {
+    width: 100%; padding: 11px 12px; border-radius: 9px; border: 1px solid #2b3b4d;
+    background: #0e1621; color: #fff; font-size: 14px;
+  }
+  input:focus { outline: none; border-color: #5eb5f7; }
+  button {
+    margin-top: 14px; width: 100%; padding: 12px; border: none; border-radius: 9px;
+    background: #3390ec; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:hover { background: #2b7fd4; }
+  button:disabled { background: #38505f; cursor: default; }
+  .hidden { display: none; }
+  .msg { margin-top: 12px; font-size: 14px; padding: 10px 12px; border-radius: 9px; }
+  .msg.ok { background: #16361f; color: #79e398; }
+  .msg.err { background: #3a1c1c; color: #ff8f8f; }
+  .msg.info { background: #1a2c3d; color: #8fd0ff; }
+  .steps { counter-reset: s; padding-left: 0; margin: 0; }
+  .steps li {
+    list-style: none; counter-increment: s; position: relative;
+    padding: 6px 0 6px 30px; font-size: 13.5px; color: #c5d3df; line-height: 1.5;
+  }
+  .steps li::before {
+    content: counter(s); position: absolute; left: 0; top: 6px;
+    width: 20px; height: 20px; border-radius: 50%; background: #3390ec;
+    color: #fff; font-size: 12px; text-align: center; line-height: 20px; font-weight: 700;
+  }
+  a { color: #5eb5f7; }
+  code { background: #0e1621; padding: 1px 6px; border-radius: 5px; color: #ffd479; }
+  .check {
+    display: flex; align-items: center; gap: 8px; font-size: 13.5px;
+    color: #c5d3df; margin-top: 14px; cursor: pointer;
+  }
+  .check input { width: auto; }
+  .files a {
+    display: block; padding: 10px 12px; background: #0e1621; border-radius: 9px;
+    margin-top: 8px; text-decoration: none; color: #79e398; border: 1px solid #2b3b4d;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📥 Выгрузка сообщений Telegram</h1>
+  <div class="sub">Скачивает всю историю группы от лица твоего аккаунта в JSON и TXT.</div>
+  <div class="sub">
+    Обновления и исходный код:
+    <a href="https://github.com/amd1138/telegram-group-exporter" target="_blank">github.com/amd1138/telegram-group-exporter</a>
+    — если нужна свежая версия, скачай её оттуда.
+  </div>
+
+  <!-- ИНСТРУКЦИЯ -->
+  <div class="card">
+    <h2>ℹ️ Где взять api_id и api_hash</h2>
+    <ol class="steps">
+      <li>Зайди на <a href="https://my.telegram.org" target="_blank">my.telegram.org</a> и войди по своему номеру телефона (Telegram пришлёт код).</li>
+      <li>Открой раздел <b>API development tools</b>.</li>
+      <li>Если приложения нет — создай любое (App title и Short name — любые, например «export»).</li>
+      <li>Скопируй оттуда <b>api_id</b> (число) и <b>api_hash</b> (длинная строка) — впиши их ниже.</li>
+      <li>Телефон — твой номер в формате <code>+79991234567</code>. Аккаунт должен <b>состоять в группе</b>, которую выгружаешь.</li>
+    </ol>
+  </div>
+
+  <!-- ШАГ 1: данные -->
+  <div class="card" id="card-connect">
+    <h2>1 · Данные аккаунта</h2>
+    <label>api_id</label>
+    <input id="api_id" placeholder="123456" inputmode="numeric">
+    <label>api_hash</label>
+    <input id="api_hash" placeholder="abcd1234ef...">
+    <label>Телефон</label>
+    <input id="phone" placeholder="+79991234567">
+    <button id="btn-connect" onclick="connect()">Подключиться</button>
+    <div id="msg-connect"></div>
+  </div>
+
+  <!-- ШАГ 2: код -->
+  <div class="card hidden" id="card-code">
+    <h2>2 · Код из Telegram</h2>
+    <label>Код пришёл в приложение Telegram</label>
+    <input id="code" placeholder="12345" inputmode="numeric">
+    <button onclick="sendCode()">Подтвердить код</button>
+    <div id="msg-code"></div>
+  </div>
+
+  <!-- ШАГ 2б: пароль 2FA -->
+  <div class="card hidden" id="card-password">
+    <h2>2б · Облачный пароль (2FA)</h2>
+    <label>Пароль двухфакторной защиты</label>
+    <input id="password" type="password" placeholder="••••••">
+    <button onclick="sendPassword()">Войти</button>
+    <div id="msg-password"></div>
+  </div>
+
+  <!-- ШАГ 3: выгрузка -->
+  <div class="card hidden" id="card-export">
+    <h2>3 · Выгрузка группы</h2>
+    <label>Группа: @username, ссылка t.me/... или числовой id</label>
+    <input id="group" placeholder="@my_group">
+    <label>Лимит сообщений (пусто = все)</label>
+    <input id="limit" placeholder="оставь пустым для всех" inputmode="numeric">
+    <label class="check">
+      <input type="checkbox" id="media">
+      Скачивать фото и файлы (медленнее, занимает место на диске)
+    </label>
+    <button id="btn-export" onclick="doExport()">Выгрузить всё</button>
+    <div id="msg-export"></div>
+    <div class="files" id="files"></div>
+  </div>
+</div>
+
+<script>
+async function post(url, body) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || "Ошибка");
+  return data;
+}
+function show(id, text, cls) {
+  const el = document.getElementById(id);
+  el.className = "msg " + cls;
+  el.textContent = text;
+}
+function showCard(id) { document.getElementById(id).classList.remove("hidden"); }
+
+async function connect() {
+  const btn = document.getElementById("btn-connect");
+  btn.disabled = true;
+  show("msg-connect", "Подключаюсь...", "info");
+  try {
+    const d = await post("/connect", {
+      api_id: document.getElementById("api_id").value,
+      api_hash: document.getElementById("api_hash").value,
+      phone: document.getElementById("phone").value,
+    });
+    show("msg-connect", d.msg, "ok");
+    if (d.step === "code") showCard("card-code");
+    else if (d.step === "ready") showCard("card-export");
+  } catch (e) {
+    show("msg-connect", e.message, "err");
+  }
+  btn.disabled = false;
+}
+async function sendCode() {
+  show("msg-code", "Проверяю код...", "info");
+  try {
+    const d = await post("/code", { code: document.getElementById("code").value });
+    show("msg-code", d.msg, "ok");
+    if (d.step === "password") showCard("card-password");
+    else if (d.step === "ready") showCard("card-export");
+  } catch (e) { show("msg-code", e.message, "err"); }
+}
+async function sendPassword() {
+  show("msg-password", "Проверяю пароль...", "info");
+  try {
+    const d = await post("/password", { password: document.getElementById("password").value });
+    show("msg-password", d.msg, "ok");
+    if (d.step === "ready") showCard("card-export");
+  } catch (e) { show("msg-password", e.message, "err"); }
+}
+async function doExport() {
+  const btn = document.getElementById("btn-export");
+  btn.disabled = true;
+  show("msg-export", "Выгружаю... это может занять время для больших групп.", "info");
+  document.getElementById("files").innerHTML = "";
+  try {
+    const d = await post("/export", {
+      group: document.getElementById("group").value,
+      limit: document.getElementById("limit").value,
+      media: document.getElementById("media").checked,
+    });
+    let extra = "";
+    if (d.media_dir) extra = ` Медиа: ${d.media_count} файл(ов) в папке exports/${d.media_dir}.`;
+    show("msg-export", `Готово! «${d.title}» — ${d.count} сообщений.${extra}`, "ok");
+    document.getElementById("files").innerHTML =
+      `<a href="/download/${d.json}" download>⬇ Скачать JSON (${d.json})</a>` +
+      `<a href="/download/${d.txt}" download>⬇ Скачать TXT (${d.txt})</a>`;
+  } catch (e) {
+    show("msg-export", e.message, "err");
+  }
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>

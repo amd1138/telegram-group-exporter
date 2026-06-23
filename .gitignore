@@ -1,0 +1,22 @@
+# Сессия входа Telegram — НИКОГДА не коммитить (это ключ от аккаунта!)
+*.session
+*.session-journal
+account.session
+
+# Выгруженные данные и медиа
+exports/
+export_*.json
+export_*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Секреты
+.env
+
+# Системное
+.DS_Store
+Thumbs.db
