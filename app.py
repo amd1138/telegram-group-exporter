@@ -189,4 +189,10 @@ def download(name):
 if __name__ == "__main__":
     print("\n  Открой в браузере:  http://127.0.0.1:5000\n")
     # threaded=False — чтобы Telethon-сессия жила между запросами
-    app.run(host="127.0.0.1", port=5000, threaded=False, use_reloader=False)
+    try:
+        app.run(host="127.0.0.1", port=5000, threaded=False, use_reloader=False)
+    except OSError as e:
+        print("\n[!] Не удалось запустить сервер на порту 5000.")
+        print(f"    {e}")
+        print("    Скорее всего порт 5000 уже занят другой программой.")
+        print("    Закрой её (или перезагрузи компьютер) и запусти run.bat снова.\n")
