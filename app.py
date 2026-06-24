@@ -9,7 +9,12 @@ from datetime import datetime, timezone
 
 import telethon.sync  # делает методы Telethon синхронными (удобно для Flask)
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError
+from telethon.errors import (
+    SessionPasswordNeededError,
+    FloodWaitError,
+    PhoneNumberBannedError,
+    PhoneNumberInvalidError,
+)
 from flask import Flask, request, jsonify, send_file, Response
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -44,14 +49,45 @@ def connect():
     if not api_hash or not phone:
         return jsonify({"error": "Заполните api_hash и телефон"}), 400
 
+    if not phone.startswith("+"):
+        return jsonify({"error": "Телефон должен быть в международном формате с плюсом, "
+                                 "например +79991234567"}), 400
+
     client = TelegramClient(SESSION, api_id, api_hash)
-    client.connect()
+    try:
+        client.connect()
+    except Exception as e:
+        return jsonify({"error": f"Нет связи с Telegram: {e}. Проверь интернет/VPN."}), 400
+
     if client.is_user_authorized():
         return jsonify({"step": "ready", "msg": "Уже авторизованы — можно выгружать."})
 
-    client.send_code_request(phone)
+    try:
+        sent = client.send_code_request(phone)
+    except FloodWaitError as e:
+        hrs = round(e.seconds / 3600, 1)
+        return jsonify({"error": f"Telegram временно заблокировал запрос кода из-за частых "
+                                 f"попыток. Подожди {e.seconds} сек (~{hrs} ч) и попробуй снова. "
+                                 f"Больше не нажимай «Подключиться» подряд."}), 400
+    except PhoneNumberBannedError:
+        return jsonify({"error": "Этот номер заблокирован в Telegram."}), 400
+    except PhoneNumberInvalidError:
+        return jsonify({"error": "Неверный номер телефона. Формат: +79991234567"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Не удалось запросить код: {type(e).__name__}: {e}"}), 400
+
     state["phone"] = phone
-    return jsonify({"step": "code", "msg": "Код отправлен в Telegram. Введите его."})
+    delivery = type(sent.type).__name__
+    if delivery == "SentCodeTypeApp":
+        where = ("Код 5 цифр пришёл В ПРИЛОЖЕНИЕ Telegram (чат «Telegram» с синей галочкой), "
+                 "а НЕ по SMS. Открой Telegram на телефоне/десктопе, где ты уже залогинен.")
+    elif delivery == "SentCodeTypeSms":
+        where = "Код отправлен по SMS на этот номер."
+    elif delivery in ("SentCodeTypeCall", "SentCodeTypeMissedCall", "SentCodeTypeFlashCall"):
+        where = "Код придёт звонком — последние цифры входящего номера."
+    else:
+        where = f"Тип доставки кода: {delivery}."
+    return jsonify({"step": "code", "msg": where})
 
 
 @app.route("/code", methods=["POST"])
