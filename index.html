@@ -97,7 +97,13 @@
   <!-- ШАГ 2: код -->
   <div class="card hidden" id="card-code">
     <h2>2 · Код из Telegram</h2>
-    <label>Код пришёл в приложение Telegram</label>
+    <div style="background:#3a2e0e;border:1px solid #ffd479;border-radius:8px;padding:10px 12px;margin-bottom:12px;color:#ffe9b0;font-size:14px;line-height:1.5">
+      ⚠️ <b>Код приходит НЕ по SMS!</b><br>
+      Открой приложение Telegram (на телефоне или в Telegram Desktop, где ты уже залогинен)
+      и найди чат с официальным аккаунтом <b>«Telegram»</b> (синяя галочка) — код из 5 цифр там.<br>
+      <span style="color:#ff9b9b">Вводи код руками, не пересылай сообщение — Telegram аннулирует пересланный код.</span>
+    </div>
+    <label>Код из приложения Telegram (5 цифр)</label>
     <input id="code" placeholder="12345" inputmode="numeric">
     <button onclick="sendCode()">Подтвердить код</button>
     <div id="msg-code"></div>
